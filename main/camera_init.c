@@ -25,7 +25,7 @@
 #define CAM_PIN_D7       16
 
 #define CAMERA_FRAME_SIZE           FRAMESIZE_VGA
-#define CAMERA_PIXEL_FORMAT         PIXFORMAT_YUV422
+#define CAMERA_PIXEL_FORMAT         PIXFORMAT_JPEG
 #define CAMERA_CONVERT_JPEG_QUALITY 20
 
 static const char *TAG = "APP_CAMERA";
@@ -105,7 +105,7 @@ esp_err_t camera_init(void)
 
         .pixel_format   = CAMERA_PIXEL_FORMAT,
         .frame_size     = CAMERA_FRAME_SIZE,
-        .jpeg_quality   = 50,
+        .jpeg_quality   = 12,
         .fb_count       = 2,
         .fb_location    = CAMERA_FB_IN_PSRAM,
         .grab_mode      = CAMERA_GRAB_LATEST,
@@ -136,11 +136,6 @@ esp_err_t camera_init(void)
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_camera_init failed: 0x%x", err);
         return err;
-    }
-
-    err = esp_camera_set_psram_mode(true);
-    if (err != ESP_OK) {
-        ESP_LOGW(TAG, "PSRAM DMA enable failed: 0x%x", err);
     }
 
     sensor_t *sensor = esp_camera_sensor_get();
