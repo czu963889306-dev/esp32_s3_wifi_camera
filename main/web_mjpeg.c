@@ -89,16 +89,20 @@ static esp_err_t stream_handler(httpd_req_t *req)
             break;
         }
 
-        jpg_chunking_t jchunk = {
-            .req = req,
-            .len = 0,
-            .ok = false,
-        };
+        if (fb->format == PIXFORMAT_JPEG) {
+            res = httpd_resp_send_chunk(req, (const char *)fb->buf, fb->len);
+        } else {
+            jpg_chunking_t jchunk = {
+                .req = req,
+                .len = 0,
+                .ok = false,
+            };
 
-        if (!frame2jpg_cb(fb, STREAM_JPEG_QUALITY, jpg_encode_stream, &jchunk) || !jchunk.ok) {
-            ESP_LOGE(TAG, "Streaming frame JPEG conversion failed");
-            esp_camera_fb_return(fb);
-            return ESP_FAIL;
+            if (!frame2jpg_cb(fb, STREAM_JPEG_QUALITY, jpg_encode_stream, &jchunk) || !jchunk.ok) {
+                ESP_LOGE(TAG, "Streaming frame JPEG conversion failed");
+                esp_camera_fb_return(fb);
+                return ESP_FAIL;
+            }
         }
 
         esp_camera_fb_return(fb);
