@@ -6,7 +6,6 @@ idf_component_register(
         "wifi_manager.c"
         "web_config.c"
         "web_mjpeg.c"
-        "jpeg_utils.c"
         "udp_discovery.c"
         "i2c_slave_comm.c"
     INCLUDE_DIRS "."

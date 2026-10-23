@@ -1,14 +1,10 @@
 #include "web_mjpeg.h"
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 #include "esp_camera.h"
 #include "esp_err.h"
 #include "esp_log.h"
-
-#include "img_converters.h"
 
 static const char *TAG = "WEB_MJPEG";
 
@@ -22,40 +18,6 @@ static const char *STREAM_BOUNDARY_LINE =
 
 static const char *STREAM_PART_HEADER =
     "Content-Type: image/jpeg\r\n\r\n";
-
-typedef struct {
-    httpd_req_t *req;
-    size_t len;
-    bool ok;
-} jpg_chunking_t;
-
-#define STREAM_JPEG_QUALITY 20
-
-static size_t jpg_encode_stream(void *arg, size_t index, const void *data, size_t len)
-{
-    jpg_chunking_t *j = (jpg_chunking_t *)arg;
-
-    if (!index) {
-        j->len = 0;
-        j->ok = true;
-    }
-
-    if (!j->ok) {
-        return 0;
-    }
-
-    if (len == 0) {
-        return 0;
-    }
-
-    if (httpd_resp_send_chunk(j->req, (const char *)data, len) != ESP_OK) {
-        j->ok = false;
-        return 0;
-    }
-
-    j->len += len;
-    return len;
-}
 
 static esp_err_t stream_handler(httpd_req_t *req)
 {
@@ -77,6 +39,14 @@ static esp_err_t stream_handler(httpd_req_t *req)
             return ESP_FAIL;
         }
 
+        if (fb->format != PIXFORMAT_JPEG || fb->len < 2 ||
+            fb->buf[0] != 0xff || fb->buf[1] != 0xd8) {
+            ESP_LOGE(TAG, "Camera returned a non-JPEG frame: format=%d len=%u",
+                     fb->format, (unsigned int)fb->len);
+            esp_camera_fb_return(fb);
+            return ESP_FAIL;
+        }
+
         res = httpd_resp_send_chunk(req, STREAM_BOUNDARY_LINE, strlen(STREAM_BOUNDARY_LINE));
         if (res != ESP_OK) {
             esp_camera_fb_return(fb);
@@ -89,16 +59,12 @@ static esp_err_t stream_handler(httpd_req_t *req)
             break;
         }
 
-        jpg_chunking_t jchunk = {
-            .req = req,
-            .len = 0,
-            .ok = false,
-        };
-
-        if (!frame2jpg_cb(fb, STREAM_JPEG_QUALITY, jpg_encode_stream, &jchunk) || !jchunk.ok) {
-            ESP_LOGE(TAG, "Streaming frame JPEG conversion failed");
+        // The OV3660 has already JPEG-compressed this frame. Send it directly;
+        // do not run the esp32-camera software converter on the ESP32-S3.
+        res = httpd_resp_send_chunk(req, (const char *)fb->buf, fb->len);
+        if (res != ESP_OK) {
             esp_camera_fb_return(fb);
-            return ESP_FAIL;
+            break;
         }
 
         esp_camera_fb_return(fb);

@@ -9,6 +9,7 @@
 #include "freertos/task.h"
 
 #include "wifi_manager.h"
+#include "web_config.h"
 
 #define BOOT_BUTTON_GPIO GPIO_NUM_0
 #define WIFI_LED_GPIO    GPIO_NUM_2
@@ -46,6 +47,8 @@ static void board_control_task(void *arg)
                 esp_err_t err = wifi_manager_enter_config_mode();
                 if (err != ESP_OK) {
                     ESP_LOGW(TAG, "Enter Wi-Fi config mode failed: 0x%x", err);
+                } else {
+                    web_config_start_captive_portal();
                 }
             }
         } else {

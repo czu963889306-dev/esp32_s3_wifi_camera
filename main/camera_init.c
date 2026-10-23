@@ -1,11 +1,7 @@
 #include "camera_init.h"
 
-#include <stdlib.h>
-
 #include "esp_camera.h"
 #include "esp_log.h"
-
-#include "jpeg_utils.h"
 
 #define CAM_PIN_SIOD     4
 #define CAM_PIN_SIOC     5
@@ -25,8 +21,8 @@
 #define CAM_PIN_D7       16
 
 #define CAMERA_FRAME_SIZE           FRAMESIZE_VGA
-#define CAMERA_PIXEL_FORMAT         PIXFORMAT_YUV422
-#define CAMERA_CONVERT_JPEG_QUALITY 20
+#define CAMERA_PIXEL_FORMAT         PIXFORMAT_JPEG
+#define CAMERA_JPEG_QUALITY          12
 
 static const char *TAG = "APP_CAMERA";
 
@@ -38,43 +34,20 @@ static esp_err_t camera_capture_self_test(void)
         return ESP_FAIL;
     }
 
-    uint8_t *jpg_buf = NULL;
-    size_t jpg_len = 0;
-    const char *format_name = "raw";
-    if (fb->format == PIXFORMAT_JPEG) {
-        format_name = "JPEG";
-    } else if (fb->format == PIXFORMAT_RGB565) {
-        format_name = "RGB565";
-    } else if (fb->format == PIXFORMAT_YUV422) {
-        format_name = "YUV422";
-    } else if (fb->format == PIXFORMAT_GRAYSCALE) {
-        format_name = "GRAYSCALE";
-    }
-
-    esp_err_t err = camera_frame_to_jpeg(fb, CAMERA_CONVERT_JPEG_QUALITY, &jpg_buf, &jpg_len);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Camera self-test JPEG conversion failed: 0x%x", err);
+    if (fb->format != PIXFORMAT_JPEG || fb->len < 2 ||
+        fb->buf[0] != 0xff || fb->buf[1] != 0xd8) {
+        ESP_LOGE(TAG, "Camera self-test expected native JPEG frame, format=%d len=%u",
+                 fb->format, (unsigned int)fb->len);
         esp_camera_fb_return(fb);
-        return err;
+        return ESP_FAIL;
     }
 
-    if (!jpg_buf || jpg_len < 2 || jpg_buf[0] != 0xff || jpg_buf[1] != 0xd8) {
-        ESP_LOGE(TAG, "Camera self-test invalid JPEG frame: len=%u", (unsigned int)jpg_len);
-        err = ESP_FAIL;
-    } else {
-        ESP_LOGI(
-            TAG,
-            "Camera self-test passed: captured %ux%u %s frame, JPEG %u bytes",
-            (unsigned int)fb->width,
-            (unsigned int)fb->height,
-            format_name,
-            (unsigned int)jpg_len
-        );
-    }
-
-    free(jpg_buf);
+    ESP_LOGI(TAG, "Camera self-test passed: captured %ux%u native JPEG frame, %u bytes",
+             (unsigned int)fb->width,
+             (unsigned int)fb->height,
+             (unsigned int)fb->len);
     esp_camera_fb_return(fb);
-    return err;
+    return ESP_OK;
 }
 
 esp_err_t camera_init(void)
@@ -105,42 +78,17 @@ esp_err_t camera_init(void)
 
         .pixel_format   = CAMERA_PIXEL_FORMAT,
         .frame_size     = CAMERA_FRAME_SIZE,
-        .jpeg_quality   = 50,
+        // JPEG is compressed by the OV3660 sensor before the frame reaches the ESP32-S3.
+        .jpeg_quality   = CAMERA_JPEG_QUALITY,
         .fb_count       = 2,
         .fb_location    = CAMERA_FB_IN_PSRAM,
         .grab_mode      = CAMERA_GRAB_LATEST,
     };
 
-    // ESP_LOGI(TAG, "Camera pin map:");
-    // ESP_LOGI(TAG, "PWDN=%d RESET=%d XCLK=%d",
-    //          config.pin_pwdn,
-    //          config.pin_reset,
-    //          config.pin_xclk);
-    // ESP_LOGI(TAG, "SDA=%d SCL=%d VSYNC=%d HREF=%d PCLK=%d",
-    //          config.pin_sccb_sda,
-    //          config.pin_sccb_scl,
-    //          config.pin_vsync,
-    //          config.pin_href,
-    //          config.pin_pclk);
-    // ESP_LOGI(TAG, "D0=%d D1=%d D2=%d D3=%d D4=%d D5=%d D6=%d D7=%d",
-    //          config.pin_d0,
-    //          config.pin_d1,
-    //          config.pin_d2,
-    //          config.pin_d3,
-    //          config.pin_d4,
-    //          config.pin_d5,
-    //          config.pin_d6,
-    //          config.pin_d7);
-
     esp_err_t err = esp_camera_init(&config);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_camera_init failed: 0x%x", err);
         return err;
-    }
-
-    err = esp_camera_set_psram_mode(true);
-    if (err != ESP_OK) {
-        ESP_LOGW(TAG, "PSRAM DMA enable failed: 0x%x", err);
     }
 
     sensor_t *sensor = esp_camera_sensor_get();
