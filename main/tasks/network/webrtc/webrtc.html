@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>相机 WebRTC 实时画面</title>
+<style>
+body{max-width:48rem;margin:2rem auto;padding:0 1rem;font:16px system-ui,sans-serif;color:#192733}
+video{display:block;width:100%;aspect-ratio:4/3;background:#121820}
+button{padding:.55rem 1rem} a{float:right}
+</style>
+<h1>WebRTC 实时画面</h1>
+<video autoplay muted playsinline></video>
+<p role="status">正在连接相机…</p>
+<button type="button" disabled>重新连接</button> <a href="/">相机设置</a>
+<script>
+const video = document.querySelector('video');
+const statusText = document.querySelector('[role=status]');
+const retry = document.querySelector('button');
+let peer, session;
+function closeStream() {
+    if (session) navigator.sendBeacon('/webrtc/stop?id=' + session);
+    session = null;
+    if (peer) peer.close();
+    peer = null;
+    video.srcObject = null;
+}
+async function play() {
+    retry.disabled = true;
+    statusText.textContent = '正在连接相机…';
+    closeStream();
+    try {
+        const pc = peer = new RTCPeerConnection({iceServers: []});
+        const transceiver = pc.addTransceiver('video', {direction:'recvonly'});
+        if (transceiver.setCodecPreferences) {
+            const codecs = RTCRtpReceiver.getCapabilities('video').codecs.filter(c => c.mimeType.toLowerCase() === 'video/h264');
+            if (!codecs.length) throw new Error('此浏览器未启用 H.264 视频解码');
+            transceiver.setCodecPreferences(codecs);
+        }
+        pc.ontrack = e => { video.srcObject = new MediaStream([e.track]); };
+        pc.onconnectionstatechange = () => {
+            if (pc !== peer) return;
+            if (['failed', 'disconnected'].includes(pc.connectionState)) {
+                statusText.textContent = '连接已断开';
+                closeStream();
+                retry.disabled = false;
+            }
+        };
+        await pc.setLocalDescription(await pc.createOffer());
+        if (pc.iceGatheringState !== 'complete') {
+            await new Promise((resolve,reject) => {
+                const timer = setTimeout(() => reject(new Error('本地网络候选地址收集超时')), 6000);
+                pc.onicegatheringstatechange = () => {
+                    if (pc.iceGatheringState === 'complete') { clearTimeout(timer); resolve(); }
+                };
+            });
+        }
+        const r = await fetch('/webrtc/offer', {method:'POST',headers:{'Content-Type':'application/sdp'},body:pc.localDescription.sdp});
+        if (!r.ok) throw new Error(await r.text());
+        session = r.headers.get('X-Session');
+        await pc.setRemoteDescription({type:'answer',sdp:await r.text()});
+    } catch (e) {
+        closeStream();
+        statusText.textContent = e.message;
+        retry.disabled = false;
+    }
+}
+video.onplaying = () => { statusText.textContent = '正在播放'; };
+retry.onclick = play;
+window.addEventListener('pagehide',closeStream);
+play();
+</script>
+</html>

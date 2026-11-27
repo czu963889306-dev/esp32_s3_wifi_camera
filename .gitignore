@@ -1,4 +1,15 @@
 build/
+components/micro_ros_espidf_component/micro_ros_dev/
+components/micro_ros_espidf_component/micro_ros_src/
+components/micro_ros_espidf_component/include/
+components/micro_ros_espidf_component/libmicroros.a
+components/micro_ros_espidf_component/esp32_toolchain.cmake
+components/micro_ros_espidf_component/.app-colcon.sha256
+__pycache__/
 managed_components/*/.git/
 managed_components/*/.github/
 managed_components/*/.gitignore
+managed_components/*/CHECKSUMS.json
+managed_components/espressif__esp_peer/
+managed_components/espressif__esp_libsrtp/
+managed_components/espressif__esp_h264/

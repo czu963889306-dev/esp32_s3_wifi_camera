@@ -13,6 +13,20 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 2.1.6
+  espressif/esp_h264:
+    component_hash: 6cbda8cbf318aa041c5fc0f5b01f690857f7fdfd9796fa35f51826190ab6d993
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.4'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    targets:
+    - esp32s3
+    - esp32s31
+    - esp32p4
+    version: 1.5.1
   espressif/esp_jpeg:
     component_hash: defb83669293cbf86d0fa86b475ba5517aceed04ed70db435388c151ab37b5d7
     dependencies:
@@ -20,16 +34,37 @@ dependencies:
       require: private
       version: '>=5.0'
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     version: 1.3.1
+  espressif/esp_libsrtp:
+    component_hash: 131560184c73ec09f77d8904a2db709307803f0f9f111898921b6966776eac15
+    dependencies: []
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 1.0.0
+  espressif/esp_peer:
+    component_hash: dadf5a9055e169271596608adb799936accc4d3a51350e4701d60489c447fbea
+    dependencies:
+    - name: espressif/esp_libsrtp
+      registry_url: https://components.espressif.com
+      require: private
+      version: ^1.0.0
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.5.8
   idf:
     source:
       type: idf
     version: 5.5.3
 direct_dependencies:
 - espressif/esp32-camera
+- espressif/esp_h264
+- espressif/esp_jpeg
+- espressif/esp_peer
 - idf
-manifest_hash: 683c8405e2dcf5496cb71b3e7afc37620a1d75f58a9dfb4cf70880e4eb2192ae
+manifest_hash: 7b0021b4dc3a329821bbef856ad77e3cc1ad43106ce0b6f14af9d3780db88df9
 target: esp32s3
 version: 2.0.0

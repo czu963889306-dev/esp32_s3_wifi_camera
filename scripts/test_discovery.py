@@ -52,6 +52,8 @@ class Device:
 
     @property
     def stream_url(self) -> str:
+        if self.payload.get("stream_port") == 0:
+            return ""
         return str(self.payload.get("stream_url") or f"http://{self.ip}:81/")
 
 
@@ -174,13 +176,17 @@ def apply_statustext(payload: dict[str, Any], text: str, fallback_ip: str) -> No
         payload["http_port"] = int(value)
     elif key == "STREAM_PORT":
         payload["stream_port"] = int(value)
+    elif key == "RTSP_PORT":
+        payload["rtsp_port"] = int(value)
+    elif key == "IMAGE_TRANSPORT":
+        payload["image_transport"] = value
 
     ip = str(payload.get("ip") or fallback_ip)
     http_port = int(payload.get("http_port") or 80)
-    stream_port = int(payload.get("stream_port") or 81)
+    stream_port = int(payload.get("stream_port", 81))
     http_host = ip if http_port == 80 else f"{ip}:{http_port}"
     payload["handshake_url"] = f"http://{http_host}/handshake"
-    payload["stream_url"] = f"http://{ip}:{stream_port}/"
+    payload["stream_url"] = f"http://{ip}:{stream_port}/" if stream_port else ""
 
 
 def discover_devices(
@@ -278,12 +284,20 @@ def print_device(device: Device, handshake: dict[str, Any] | None, stream_status
     print(f"  IP: {device.ip}")
     print(f"  MAVLink sys/comp: {device.payload.get('mavlink_sys_id', '')}/{device.payload.get('mavlink_comp_id', '')}")
     print(f"  Handshake URL: {device.handshake_url}")
-    print(f"  Stream URL: {device.stream_url}")
+    print(f"  HTTP stream URL: {device.stream_url or 'disabled'}")
+    if device.payload.get("image_transport") == "webrtc":
+        print(f"  WebRTC viewer: http://{device.ip}/webrtc")
+    if device.payload.get("image_transport") == "rtsp":
+        print(f"  RTSP URL: rtsp://{device.ip}:{device.payload.get('rtsp_port', 8554)}/stream")
 
     if handshake is not None:
         print("  HTTP handshake: OK")
         print(f"  HTTP name: {handshake.get('name', '')}")
         print(f"  HTTP ip: {handshake.get('ip', '')}")
+        if handshake.get("ros_topic"):
+            print(f"  ROS 2 topic: {handshake.get('ros_resolved_topic', handshake['ros_topic'])} ({handshake.get('ros_type', '')})")
+            print(f"  ROS domain: {handshake.get('ros_domain_id', '')}")
+            print(f"  micro-ROS Agent: {handshake.get('agent_ip', '')}:{handshake.get('agent_port', '')}")
 
     if stream_status is not None:
         print(f"  Stream: OK ({stream_status})")
@@ -336,6 +350,8 @@ def main() -> int:
 
         if args.stream:
             try:
+                if not device.stream_url:
+                    raise RuntimeError("HTTP mode disabled; check image_transport or handshake video_mode")
                 stream_status = test_stream(device.stream_url, timeout=args.http_timeout)
             except (URLError, TimeoutError, OSError, RuntimeError) as exc:
                 errors.append(f"Stream test failed: {exc}")

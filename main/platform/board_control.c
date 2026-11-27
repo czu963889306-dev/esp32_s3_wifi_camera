@@ -1,20 +1,16 @@
 #include "board_control.h"
+#include "config/board_config.h"
 
 #include <stdbool.h>
 
-#include "driver/gpio.h"
 #include "esp_check.h"
 #include "esp_log.h"
+#include "esp_system.h"
+#include "nvs_flash.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-#include "wifi_manager.h"
-#include "web_config.h"
-
-#define BOOT_BUTTON_GPIO GPIO_NUM_0
-#define WIFI_LED_GPIO    GPIO_NUM_2
-#define WIFI_LED_ON      0
-#define WIFI_LED_OFF     1
+#include "network/wifi_manager.h"
 
 #define BUTTON_POLL_MS       50
 #define BUTTON_LONG_PRESS_MS 3000
@@ -27,34 +23,30 @@ static TaskHandle_t s_control_task;
 static void board_control_task(void *arg)
 {
     bool led_on = false;
-    uint32_t pressed_ms = 0;
+    TickType_t pressed_at = 0;
+    bool was_pressed = false;
     uint32_t blink_elapsed_ms = 0;
-    bool long_press_handled = false;
+    bool reset_on_release = false;
     TickType_t last_wake = xTaskGetTickCount();
 
     while (true) {
         bool button_pressed = gpio_get_level(BOOT_BUTTON_GPIO) == 0;
 
-        if (button_pressed) {
-            if (pressed_ms < BUTTON_LONG_PRESS_MS) {
-                pressed_ms += BUTTON_POLL_MS;
+        if (button_pressed && !was_pressed) {
+            pressed_at = xTaskGetTickCount();
+        } else if (button_pressed && !reset_on_release &&
+                   xTaskGetTickCount() - pressed_at >= pdMS_TO_TICKS(BUTTON_LONG_PRESS_MS)) {
+            reset_on_release = true;
+            ESP_LOGI(TAG, "Release BOOT to restore factory settings");
+        } else if (!button_pressed && reset_on_release) {
+            reset_on_release = false;
+            esp_err_t err = nvs_flash_erase();
+            if (err == ESP_OK) {
+                esp_restart();
             }
-
-            if (!long_press_handled && pressed_ms >= BUTTON_LONG_PRESS_MS) {
-                long_press_handled = true;
-                ESP_LOGI(TAG, "BOOT held for %d ms, clearing Wi-Fi config", BUTTON_LONG_PRESS_MS);
-
-                esp_err_t err = wifi_manager_enter_config_mode();
-                if (err != ESP_OK) {
-                    ESP_LOGW(TAG, "Enter Wi-Fi config mode failed: 0x%x", err);
-                } else {
-                    web_config_start_captive_portal();
-                }
-            }
-        } else {
-            pressed_ms = 0;
-            long_press_handled = false;
+            ESP_LOGE(TAG, "Factory reset failed: %s", esp_err_to_name(err));
         }
+        was_pressed = button_pressed;
 
         if (wifi_manager_is_connected() && !wifi_manager_is_ap_mode()) {
             led_on = true;

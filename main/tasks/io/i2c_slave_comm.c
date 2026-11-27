@@ -1,4 +1,5 @@
 #include "i2c_slave_comm.h"
+#include "config/board_config.h"
 
 #include <ctype.h>
 #include <stdbool.h>
@@ -15,7 +16,8 @@
 #include "freertos/queue.h"
 #include "freertos/task.h"
 
-#include "wifi_manager.h"
+#include "network/wifi_manager.h"
+#include "network/stream_url.h"
 
 #define I2C_SLAVE_COMM_PORT I2C_NUM_0
 #define I2C_SLAVE_COMM_RX_SIZE 128
@@ -151,20 +153,22 @@ static void update_tx_payload(const char *status, esp_err_t last_err)
     esp_ip4_addr_t ip = wifi_manager_get_ip();
     const char *mode = wifi_manager_get_mode_name();
     const char *name = wifi_manager_get_device_name();
+    char stream_url[64];
+    stream_url_get(stream_url, sizeof(stream_url));
 
     int len = snprintf(
         (char *)s_tx_buffer,
         sizeof(s_tx_buffer),
         "{\"ok\":%s,\"status\":\"%s\",\"ip\":\"" IPSTR "\",\"mode\":\"%s\","
         "\"name\":\"%s\",\"config_url\":\"http://" IPSTR "/\","
-        "\"stream_url\":\"http://" IPSTR ":81/\",\"last_err\":%d}\n",
+        "\"stream_url\":\"%s\",\"last_err\":%d}\n",
         last_err == ESP_OK ? "true" : "false",
         status,
         IP2STR(&ip),
         mode,
         name,
         IP2STR(&ip),
-        IP2STR(&ip),
+        stream_url,
         (int)last_err
     );
 

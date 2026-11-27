@@ -1,4 +1,7 @@
 #include "web_mjpeg.h"
+#include "config/device_config.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #include <string.h>
 
@@ -31,6 +34,7 @@ static esp_err_t stream_handler(httpd_req_t *req)
 
     ESP_LOGI(TAG, "MJPEG client connected");
 
+    TickType_t last = xTaskGetTickCount();
     while (true) {
         camera_fb_t *fb = esp_camera_fb_get();
 
@@ -68,6 +72,7 @@ static esp_err_t stream_handler(httpd_req_t *req)
         }
 
         esp_camera_fb_return(fb);
+        vTaskDelayUntil(&last, pdMS_TO_TICKS(1000 / device_config_get()->fps));
 
         if (res != ESP_OK) {
             break;

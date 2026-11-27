@@ -56,7 +56,7 @@ static void wifi_status_log_task(void *arg)
                  "设备名称: %s, IP地址: " IPSTR,
                  s_device_name,
                  IP2STR(&ip));
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(30000));
     }
 }
 
@@ -124,8 +124,8 @@ static void wifi_event_handler(
 
 static bool load_sta_config(wifi_config_t *wifi_config)
 {
-    char ssid[sizeof(wifi_config->sta.ssid)] = {0};
-    char password[sizeof(wifi_config->sta.password)] = {0};
+    char ssid[sizeof(wifi_config->sta.ssid) + 1] = {0};
+    char password[sizeof(wifi_config->sta.password) + 1] = {0};
     size_t ssid_len = sizeof(ssid);
     size_t pass_len = sizeof(password);
 
@@ -150,8 +150,9 @@ static bool load_sta_config(wifi_config_t *wifi_config)
 
     ESP_LOGI(TAG, "Using saved STA config");
     memset(wifi_config, 0, sizeof(*wifi_config));
-    strlcpy((char *)wifi_config->sta.ssid, ssid, sizeof(wifi_config->sta.ssid));
-    strlcpy((char *)wifi_config->sta.password, password, sizeof(wifi_config->sta.password));
+    // NVS strings include a terminator. The driver accepts full-width byte arrays.
+    memcpy(wifi_config->sta.ssid, ssid, strlen(ssid));
+    memcpy(wifi_config->sta.password, password, strlen(password));
     return wifi_config->sta.ssid[0] != '\0';
 }
 

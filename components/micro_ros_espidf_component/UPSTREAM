@@ -1,0 +1,3 @@
+https://github.com/micro-ROS/micro_ros_espidf_component
+humble commit 4ddd8c26e721662319ed8af981cb7cdc9ae05382
+Local changes: disable unused Wi-Fi helper; rebuild archive and headers when app-colcon.meta changes; replace generated headers on rebuild; fail fast on checkout/build errors.

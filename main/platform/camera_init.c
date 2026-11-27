@@ -1,32 +1,16 @@
 #include "camera_init.h"
+#include "config/board_config.h"
+#include "config/device_config.h"
 
 #include "esp_camera.h"
 #include "esp_log.h"
 
-#define CAM_PIN_SIOD     4
-#define CAM_PIN_SIOC     5
-#define CAM_PIN_VSYNC    6
-#define CAM_PIN_HREF     7
-#define CAM_PIN_XCLK     15
-#define CAM_PIN_PCLK     13
-#define CAM_PIN_RESET    -1
-#define CAM_PIN_PWDN     -1
-#define CAM_PIN_D0       11
-#define CAM_PIN_D1       9
-#define CAM_PIN_D2       8
-#define CAM_PIN_D3       10
-#define CAM_PIN_D4       12
-#define CAM_PIN_D5       18
-#define CAM_PIN_D6       17
-#define CAM_PIN_D7       16
-
 #define CAMERA_FRAME_SIZE           FRAMESIZE_VGA
 #define CAMERA_PIXEL_FORMAT         PIXFORMAT_JPEG
-#define CAMERA_JPEG_QUALITY          12
 
 static const char *TAG = "APP_CAMERA";
 
-static esp_err_t camera_capture_self_test(void)
+static esp_err_t camera_capture_self_test(bool raw_video)
 {
     camera_fb_t *fb = esp_camera_fb_get();
     if (!fb) {
@@ -34,15 +18,17 @@ static esp_err_t camera_capture_self_test(void)
         return ESP_FAIL;
     }
 
-    if (fb->format != PIXFORMAT_JPEG || fb->len < 2 ||
-        fb->buf[0] != 0xff || fb->buf[1] != 0xd8) {
-        ESP_LOGE(TAG, "Camera self-test expected native JPEG frame, format=%d len=%u",
+    bool valid = raw_video ? fb->format == PIXFORMAT_YUV422 && fb->len == fb->width * fb->height * 2
+                           : fb->format == PIXFORMAT_JPEG && fb->len >= 2 &&
+                             fb->buf[0] == 0xff && fb->buf[1] == 0xd8;
+    if (!valid) {
+        ESP_LOGE(TAG, "Unexpected camera frame, format=%d len=%u",
                  fb->format, (unsigned int)fb->len);
         esp_camera_fb_return(fb);
         return ESP_FAIL;
     }
 
-    ESP_LOGI(TAG, "Camera self-test passed: captured %ux%u native JPEG frame, %u bytes",
+    ESP_LOGI(TAG, "Camera self-test passed: captured %ux%u frame, %u bytes",
              (unsigned int)fb->width,
              (unsigned int)fb->height,
              (unsigned int)fb->len);
@@ -52,6 +38,7 @@ static esp_err_t camera_capture_self_test(void)
 
 esp_err_t camera_init(void)
 {
+    bool raw_video = device_mode("webrtc");
     camera_config_t config = {
         .pin_pwdn       = CAM_PIN_PWDN,
         .pin_reset      = CAM_PIN_RESET,
@@ -76,10 +63,10 @@ esp_err_t camera_init(void)
         .ledc_timer     = LEDC_TIMER_0,
         .ledc_channel   = LEDC_CHANNEL_0,
 
-        .pixel_format   = CAMERA_PIXEL_FORMAT,
-        .frame_size     = CAMERA_FRAME_SIZE,
+        .pixel_format   = raw_video ? PIXFORMAT_YUV422 : CAMERA_PIXEL_FORMAT,
+        .frame_size     = raw_video ? CAMERA_WEBRTC_FRAME_SIZE : CAMERA_FRAME_SIZE,
         // JPEG is compressed by the OV3660 sensor before the frame reaches the ESP32-S3.
-        .jpeg_quality   = CAMERA_JPEG_QUALITY,
+        .jpeg_quality   = device_config_get()->quality,
         .fb_count       = 2,
         .fb_location    = CAMERA_FB_IN_PSRAM,
         .grab_mode      = CAMERA_GRAB_LATEST,
@@ -89,6 +76,12 @@ esp_err_t camera_init(void)
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_camera_init failed: 0x%x", err);
         return err;
+    }
+
+    if (raw_video && !esp_camera_get_psram_mode()) {
+        err = esp_camera_set_psram_mode(true);
+        if (err != ESP_OK)
+            return err;
     }
 
     sensor_t *sensor = esp_camera_sensor_get();
@@ -111,5 +104,5 @@ esp_err_t camera_init(void)
     }
 
     ESP_LOGI(TAG, "Camera init success");
-    return camera_capture_self_test();
+    return camera_capture_self_test(raw_video);
 }

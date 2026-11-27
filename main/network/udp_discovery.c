@@ -14,6 +14,7 @@
 #include "lwip/sockets.h"
 
 #include "wifi_manager.h"
+#include "config/device_config.h"
 
 static const char *TAG = "UDP_DISCOVERY";
 
@@ -295,7 +296,10 @@ static void discovery_task(void *arg)
 
             send_statustext(sock, &target_addr, &sequence, "DEVICE_TYPE:maturo_esp32s3_cam");
             send_statustext(sock, &target_addr, &sequence, "HTTP_PORT:80");
-            send_statustext(sock, &target_addr, &sequence, "STREAM_PORT:81");
+            send_statustext(sock, &target_addr, &sequence, device_mode("http") ? "STREAM_PORT:81" : "STREAM_PORT:0");
+            snprintf(text, sizeof(text), "IMAGE_TRANSPORT:%s", device_config_get()->mode);
+            send_statustext(sock, &target_addr, &sequence, text);
+            if (device_mode("rtsp")) send_statustext(sock, &target_addr, &sequence, "RTSP_PORT:8554");
         }
 
         vTaskDelay(pdMS_TO_TICKS(20));
