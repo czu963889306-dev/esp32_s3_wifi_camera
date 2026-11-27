@@ -10,7 +10,7 @@ ESP32-S3 相机固件，支持 HTTP MJPEG、RTSP、WebRTC 和 micro-ROS UDP 四�
 | --- | --- | --- |
 | HTTP（默认） | 浏览器打开 `http://<设备IP>:81/` | 640×480 MJPEG |
 | RTSP | 用 VLC 或 FFplay 通过 TCP 打开 `rtsp://<设备IP>:8554/stream` | 640×480 JPEG |
-| WebRTC | 浏览器打开 `http://<设备IP>/webrtc` | 160×120 H.264，目标 10 fps |
+| WebRTC（仅作传输演示） | 浏览器打开 `http://<设备IP>/webrtc` | H.264 软件编码，160×120，实测约 10 fps |
 | micro-ROS UDP | 启动 micro-ROS Agent，订阅 `/camera/image_raw/compressed` 或自定义话题 | 640×480 JPEG，ROS 2 `CompressedImage` |
 
 ## micro-ROS 相机话题
@@ -144,7 +144,9 @@ camera reboot
 `wifi set` 成功后立即保存 Wi-Fi，重启应用；不会读取或打印保存的密码。
 输入的密码仍会被串口终端回显，请妥善管理终端日志。
 
-### WebRTC 模式
+### WebRTC 模式（“保密画质”）
+
+此模式仅用于演示 ESP32-S3 可以通过 WebRTC 向浏览器传输视频。ESP32-S3 没有 H.264 硬件编码器，本固件依靠 CPU 软件编码。在这块板上，320×240 实测约 3 fps，降到 160×120 才达到约 10 fps，画面细节很少。
 
 在配置页选择 **WebRTC**，保存并重启，点击“观看 WebRTC 视频”或直接打开 `http://<设备IP>/webrtc`。也可以在 USB 调试口依次输入：
 
@@ -154,9 +156,7 @@ camera save
 camera reboot
 ```
 
-浏览器和相机需在可互通的局域网内。相机通过本机 HTTP 交换 SDP，通过 ICE、DTLS-SRTP 直接发送 H.264 视频。支持一位观看者，可关闭播放页释放连接。ESP32-S3 在此模式以 160×120 采集 YUV422，通过 PSRAM DMA 双缓冲并行采集与编码。目标帧率取已配置的 `fps` 和 10 fps 中的较小值。播放需要支持 WebRTC H.264 的浏览器。
-
-在 ESP32-S3 / OV2640、240 MHz 和局域网 Chromium 的实测中，首次播放 60.2 秒解码 597 帧（9.92 fps），重连后 30.1 秒解码 301 帧（10.00 fps）。两轮的 RTP 丢包与视频丢帧计数均为 0。
+观看时，浏览器和相机需在同一局域网，浏览器需支持 WebRTC H.264。一次支持一位观看者。
 
 ### RTSP 模式
 
